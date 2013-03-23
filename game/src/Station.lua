@@ -76,7 +76,6 @@ function Class:launchMissile()
         angle = self.missileAngle,
         speed = 10
     })
-    print("Missile Launched !")
     self.buttonPressed = "Missile !"
 end
 
