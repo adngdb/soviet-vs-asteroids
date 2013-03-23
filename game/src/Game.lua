@@ -9,6 +9,8 @@ module("Game", package.seeall)
 local Class = Game
 Class.__index = Class
 
+game = nil
+
 -----------------------------------------------------------------------------------------
 -- Imports
 -----------------------------------------------------------------------------------------
@@ -19,9 +21,13 @@ require("lib.json.json")
 require("src.Config")
 require("src.Station")
 require("src.PadController")
-require("src.KeyboardControler")
+require("src.KeyboardController")
+require("src.MouseController")
+require("src.SoundManager")
 require("src.Asteroid")
 require("src.Space")
+require("src.LaserSat")
+require("src.MenusManager")
 
 -----------------------------------------------------------------------------------------
 -- Initialization and Destruction
@@ -32,13 +38,14 @@ function Class.create(options)
     -- Create object
     self = {}
     setmetatable(self, Class)
+    Game=self
 
     -- Set virtual viewport
     self.virtualScreenHeight = gameConfig.camera.minVirtualHeight
     self.virtualScaleFactor = love.graphics.getHeight() / self.virtualScreenHeight
     self.screenRatio = love.graphics.getWidth() / love.graphics.getHeight()
     self.camera = vec2(0, 0)
-    self.zoom = 1.0
+    self.zoom = 1.25
 
     -- Set font
     love.graphics.setFont(love.graphics.newFont(20))
@@ -48,23 +55,56 @@ function Class.create(options)
     self.space = Space.create{
         station = self.station
     }
-    if (love.joystick.isOpen(1)) then
-        self.controller = PadController.create{
-            station = self.station
-        }
-    else
-        self.controller = KeyboardControler.create{
-            station = self.station
-        }
-    end
 
     self.station.space = self.space
+    self.menus = MenusManager.create{
+        game = self
+    }
+
+    self.station:addLaserSat( LaserSat.create{ angle = -math.pi / 2 } )
+    self.station:addLaserSat( LaserSat.create{ angle = math.pi / 2 } )
+    self.station:addLaserSat( LaserSat.create{ angle = 0 } )
+    self.station:addLaserSat( LaserSat.create{ angle = math.pi } )
+
+    -- Create the input controller
+    if (
+        gameConfig.controls.default == "joystick" and
+        (
+            love.joystick.isOpen(1) or
+            gameConfig.controls.force == "joystick"
+        )
+    ) then
+        ControllerClass = PadController
+    elseif gameConfig.controls.default == "keyboard" then
+        ControllerClass = KeyboardController
+    else
+        ControllerClass = MouseController
+    end
+
+    self.controller = ControllerClass.create{
+        station = self.station,
+        game = self,
+    }
+
+    self:computeTranslateVector()
+    self:setMode("game")
+
+    SoundManager.setup()
+    SoundManager.startMusic()
 
     return self
 end
 
 -- Destroy the game
 function Class:destroy()
+end
+
+-- Compute the translate vector for the camera
+function Class:computeTranslateVector()
+    self.translateVector = vec2(
+        (self.virtualScreenHeight * 0.5 / self.zoom) * self.screenRatio - self.camera.x,
+        (self.virtualScreenHeight * 0.5 / self.zoom) - self.camera.y
+    )
 end
 
 -----------------------------------------------------------------------------------------
@@ -76,9 +116,13 @@ end
 -- Parameters:
 --  dt: The time in seconds since last frame
 function Class:update(dt)
-    self.station:update(dt)
-    self.space:update(dt)
     self.controller:update(dt)
+    if self.mode == "menu" then
+        self.menus:update(dt)
+    else
+        self.station:update(dt)
+        self.space:update(dt)
+    end
 end
 
 -- Draw the game
@@ -94,25 +138,64 @@ function Class:draw()
 
     -- Move to camera position
     love.graphics.translate(
-        (self.virtualScreenHeight * 0.5 / self.zoom) * self.screenRatio - self.camera.x,
-        (self.virtualScreenHeight * 0.5 / self.zoom) - self.camera.y
+        self.translateVector.x,
+        self.translateVector.y
     )
 
     -- Draw background
     local screenExtent = vec2(self.virtualScreenHeight * self.screenRatio, self.virtualScreenHeight)
     local cameraBounds = aabb(self.camera - screenExtent, self.camera + screenExtent)
 
-    self.station:draw()
-    self.space:draw()
     self.controller:draw()
+    if self.mode ~= "menu" then
+        self.station:draw()
+        self.space:draw()
+    end
+
 
     -- Reset camera transform before hud drawing
     love.graphics.pop()
 
     -- Draw HUD
-    --love.graphics.setColor(255, 0, 255)
-    --love.graphics.print(self.axis1, 0, 0)
 
+    love.graphics.setColor(255, 255, 255)
+    love.graphics.print("Score : " ..self.station.score, 10, 10)
+
+    love.graphics.setColor(255, 255, 255)
+    love.graphics.print("Roubles : " ..self.station.coins, 300, 10)
+
+    if self.mode == "menu" then
+        self.menus:draw()
+    end
+
+end
+
+-- Compute the translate vector for the camera
+function Class:computeTranslateVector()
+    self.translateVector = vec2(
+        (self.virtualScreenHeight * 0.5 / self.zoom) * self.screenRatio - self.camera.x,
+        (self.virtualScreenHeight * 0.5 / self.zoom) - self.camera.y
+    )
+end
+
+-- Set the current mode of the game
+--
+-- Parameters
+--  mode: "game" or "upgrade" or "menu"
+function Class:setMode(mode)
+    self.mode = mode
+    self.controller:setMode(mode)
+    self.station:setMode(mode)
+    self.space:setMode(mode)
+end
+
+-- Set the current menu
+--
+-- Parameters
+--  menu: the menu to show
+function Class:setMenu(menu)
+    self.menus:setMenu(menu)
+    self:setMode("menu")
 end
 
 -----------------------------------------------------------------------------------------

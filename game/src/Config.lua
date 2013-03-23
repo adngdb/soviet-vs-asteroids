@@ -1,5 +1,12 @@
+require("lib.math.vec2")
+
 gameConfig = {
     virtualScreenHeight = 1080,
+
+    screen = {
+        width = 1024,
+        height = 700
+    },
 
     -- Camera
     camera = {
@@ -13,13 +20,54 @@ gameConfig = {
         deleteDistance = 1080, -- in pixels
     },
 
+    asteroid = {
+    	spawnPeriod = 2,
+    	baseRadius = 64,
+        baseLife = 50,
+        numberPoint = 100
+    },
+    asteroidBeltDistance = 1080,
+
+    station = {
+        radius = 90,
+        maxLife = 100,
+        shieldRegeneration = .5,
+        shieldOffset = vec2(0, 15)
+    },
+
+    laserSat = {
+        offOrbitRatio = 1.0
+    },
+
+    controls = {
+        default = "joystick", -- joystick, keyboard, mouse
+        force = nil, -- joystick, keyboard, mouse
+
+        mouse = {
+            controls = "missiles", -- lasers, missiles
+        },
+
+        keyboard = {
+            delta = math.pi / 36, -- in radian
+        },
+    },
+
     -- Debug options
     debug = {
         all = false,
-        shapes = true
+        shapes = false
     },
 
-    asteroidBeltDistance = 1080,
 
-    asteroidSpawnProbability = 0.04
+    laser = {
+        laserWidth =100,
+        dpsExp = 0.75,
+        baseDmg = 0.015,
+        maxRange = 800
+    },
+
+    music = {
+        music_path="assets/audio/intro_music.ogg",
+        music_volume=1
+    }
 }
