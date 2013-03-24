@@ -15,6 +15,8 @@ Class.__index = Class
 -----------------------------------------------------------------------------------------
 
 require("src.SoundManager")
+require("src.FusRoDov")
+
 -----------------------------------------------------------------------------------------
 -- Initialization and Destruction
 -----------------------------------------------------------------------------------------
@@ -29,9 +31,31 @@ function Class.create(options)
     self.station = options.station
     self.missiles = {}
     self.asteroids = {}
+    self.leds = {}
     self.dLastSpawn = 0
-    
+    self.elapsedTime = 0
+    self.background = love.graphics.newImage("assets/graphics/background.png")
+
     self.debug = gameConfig.debug.all or gameConfig.debug.shapes
+
+    self.stars = love.graphics.newParticleSystem(
+        love.graphics.newImage("assets/graphics/star.png"), 40
+    )
+    self.stars:setEmissionRate(3)
+    self.stars:setSpread( 2 * math.pi )
+    self.stars:setLifetime(-1)
+    self.stars:setParticleLife(4)
+    self.stars:setSizes(0,0,.1,.3,.45,.6)
+    self.stars:setSpeed(100, 300)
+    self.stars:start()
+    self.fusRoDovInstance = nil
+
+    -- spawn background stars
+    local i = 30
+    while i > 0 do
+        table.insert( self.leds, Star.create() )
+        i = i - 1
+    end
 
     return self
 end
@@ -51,8 +75,19 @@ end
 -- Methods
 -----------------------------------------------------------------------------------------
 
-function Class:addMissile(missile)
-    self.missiles[missile.id] = missile
+function Class:canFusRoDov()
+    return self.fusRoDovInstance == nil
+end
+
+function Class:fusRoDov()
+    if self:canFusRoDov() then
+        SoundManager.voiceBomb()
+        self.fusRoDovInstance = FusRoDov.create()
+    end
+end
+
+function Class:addMissile( options )
+    table.insert( self.missiles, Missile.create( options ) )
 end
 
 function Class:addAsteroid( options )
@@ -62,18 +97,18 @@ function Class:addAsteroid( options )
     end
 
     options.space = self
-    options.index = #self.asteroids + 1
 
     local asteroid = Asteroid.create( options )
     table.insert( self.asteroids, asteroid )
+
     return asteroid
 end
 
 function Class:removeAsteroid( i )
     local asteroid = self.asteroids[i]
 
-    table.remove( self.asteroids, i )
     asteroid.space = nil;
+    table.remove( self.asteroids, i )
 end
 
 -- Update the station
@@ -86,15 +121,57 @@ function Class:update(dt)
         return
     end
 
-    for _, missile in pairs(self.missiles) do
+    self.elapsedTime = self.elapsedTime + dt
+
+    -- Update Fus Ro Dov!
+    if self.fusRoDovInstance then
+        if self.fusRoDovInstance.ended then
+            self.fusRoDovInstance:destroy()
+            self.fusRoDovInstance = nil
+        else
+            self.fusRoDovInstance:update(dt)
+        end
+    end
+
+    -- Update missiles
+    for i, missile in pairs(self.missiles) do
         missile:update(dt)
+
+        if missile.exploded and missile.timeSinceExplosion > 0.4 then
+            table.remove( self.missiles, i )
+        end
     end
 
-    for _, asteroid in pairs(self.asteroids) do
-        asteroid:update(dt)
+    -- Update asteroids
+    for i, asteroid in pairs(self.asteroids) do
+        asteroid:update(dt, i)
     end
 
-    -- Check for collisions
+    -- Update leds
+    for _, led in pairs(self.leds) do
+        led:update(dt)
+    end
+
+    -- Check for Fus-Ro-Dov collisions to destroy asteroids and missiles
+    if self.fusRoDovInstance then
+        for i, asteroid in pairs(self.asteroids) do
+            -- exclude exploded asteroid from collision detection
+            if not asteroid.exploded and self.fusRoDovInstance.range:collideCircle(asteroid.boundingCircle) then
+                asteroid:explode{
+                    noPoints = true
+                }
+            end
+        end
+
+        for _, missile in pairs(self.missiles) do
+            -- exclude exploded missiles from collision detection
+            if not missile.exploded and self.fusRoDovInstance.range:collideCircle(missile.boundingCircle) then
+                missile:explode()
+            end
+        end
+    end
+
+    -- Check for missile collisions
     for _, missile in pairs(self.missiles) do
         -- exclude exploded missiles from collision detection
         if not missile.exploded then
@@ -104,7 +181,7 @@ function Class:update(dt)
                     missile:explode()
                     self:splitAsteroid( asteroid )
                     asteroid:explode()
-                    self:removeAsteroid( i )
+                    --self:removeAsteroid( i )
 
                     -- Stop collision detection for this missile
                     break
@@ -113,24 +190,28 @@ function Class:update(dt)
         end
     end
 
+    -- Check for station collisions
     for i, asteroid in pairs(self.asteroids) do
-        -- exclude exploded asteroid from collision detection
         if not asteroid.exploded and asteroid.boundingCircle:collideCircle(self.station.boundingCircle) then
             self:removeAsteroid( i )
 
             self.station.life = self.station.life - asteroid.radius
-            -- SoundManager.explosion()
-            -- SoundManager.voice()
-
+            if(self.station.life>0) then
+                SoundManager.voice()
+            end
+            SoundManager.explosion()
             break
         end
     end
 
     -- spawn asteroids every once in a while
     self.dLastSpawn = self.dLastSpawn + dt
-    if self.dLastSpawn > gameConfig.asteroid.spawnPeriod then
-        self:addAsteroid()
-        self.dLastSpawn = self.dLastSpawn - gameConfig.asteroid.spawnPeriod
+    if self.dLastSpawn > gameConfig.asteroid.spawnPeriod / game.difficulty then
+        local baseSpeed = gameConfig.asteroid.speed * game.pairedDifficulty
+        self:addAsteroid{
+            speed1d = gameConfig.asteroid.speed * game.pairedDifficulty * (math.random() + .5)
+        }
+        self.dLastSpawn = self.dLastSpawn - gameConfig.asteroid.spawnPeriod / game.difficulty
     end
 
     -- kill missiles once they're offscreen
@@ -146,16 +227,43 @@ function Class:update(dt)
             table.remove( self.asteroids, i )
         end
     end
+
+    self.stars:update(dt)
 end
 
 -- Draw the game
 function Class:draw()
-    for _, missile in pairs(self.missiles) do
-        missile:draw()
+    local brightness = 255 - 32 + 32 * math.sin(self.elapsedTime * 3)
+    love.graphics.setColor(brightness, brightness, brightness)
+
+    love.graphics.draw(
+        self.background,
+        0, 0,
+        0,
+        1, 1,
+        960, 540
+    )
+
+    love.graphics.setColor({64, 64, 64, 128})
+    love.graphics.draw(
+        self.stars,
+        0, 0
+    )
+
+    for _, led in pairs(self.leds) do
+        led:draw(dt)
     end
 
     for _, asteroid in pairs(self.asteroids) do
         asteroid:draw()
+    end
+
+    for _, missile in pairs(self.missiles) do
+        missile:draw()
+    end
+
+    if self.fusRoDovInstance then
+        self.fusRoDovInstance:draw()
     end
 end
 
@@ -165,13 +273,13 @@ function Class:splitAsteroid( asteroid )
     end
 
     -- only split asteroids that have not reached minimal width
-    if asteroid.radius <= 16 then
+    if asteroid.radius <= gameConfig.asteroid.minRadius then
         return false
     end
 
     self:addAsteroid({
         pos = vec2( asteroid.pos.x, asteroid.pos.y ),
-        dir = asteroid.dir + math.pi / 16,
+        dir = asteroid.dir + math.pi / 4,
         speed1d = asteroid.speed1d,
         radius = asteroid.radius / 2,
         color = { unpack(asteroid.color) }
@@ -179,7 +287,7 @@ function Class:splitAsteroid( asteroid )
 
     self:addAsteroid({
         pos = vec2( asteroid.pos.x, asteroid.pos.y ),
-        dir = asteroid.dir - math.pi / 16,
+        dir = asteroid.dir - math.pi / 4,
         speed1d = asteroid.speed1d,
         radius = asteroid.radius / 2,
         color = { unpack(asteroid.color) }

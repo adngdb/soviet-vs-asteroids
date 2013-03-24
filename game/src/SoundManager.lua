@@ -8,26 +8,52 @@ Class.__index = Class
 
 function SoundManager.setup()
 	self={}
-   	self.soundMissile1=love.audio.newSource("assets/audio/missileshot1.ogg")
-	self.soundMissile2=love.audio.newSource("assets/audio/missileshot2.ogg")
+   
 
-	self.soundLaser1=love.audio.newSource("assets/audio/lasershot2.ogg")
+	self.soundLaser1=love.audio.newSource("assets/audio/lasershot2.ogg", "static")
 	self.soundLaser1:setLooping(true)
 
-	self.soundExplosion1=love.audio.newSource("assets/audio/explosion1.ogg")
-	self.soundExplosion2=love.audio.newSource("assets/audio/explosion2.ogg")
-	self.soundExplosion3=love.audio.newSource("assets/audio/explosion3.ogg")
-	self.soundExplosion4=love.audio.newSource("assets/audio/explosion4.ogg")
 
-	self.soundUpgrade=love.audio.newSource("assets/audio/upgrade.ogg")
-	self.soundLaserPlace=love.audio.newSource("assets/audio/laser_place.ogg")
-	self.soundDronePlace=love.audio.newSource("assets/audio/drone_place.ogg")
+	self.soundUpgrade=love.audio.newSource("assets/audio/upgrade.ogg", "static")
+	self.soundLaserPlace=love.audio.newSource("assets/audio/laser_place.ogg", "static")
+	self.soundDronePlace=love.audio.newSource("assets/audio/drone_place.ogg", "static")
 
-	self.voiceShit=love.audio.newSource("assets/audio/shit.ogg")
-	self.voiceFuckyou=love.audio.newSource("assets/audio/fuckyou.ogg")
-	self.voiceForMotherRussia=love.audio.newSource("assets/audio/formotherrussia.ogg")
-	self.voiceFusRoDov=love.audio.newSource("assets/audio/fusrodov.ogg")
-	self.voiceAnneRoumanov=love.audio.newSource("assets/audio/anneroumanov.ogg")
+	self.soundMissiles={
+		love.audio.newSource("assets/audio/missileshot1.ogg", "static"),
+		love.audio.newSource("assets/audio/missileshot2.ogg", "static"),
+		love.audio.newSource("assets/audio/missileshot1.ogg", "static"),
+		love.audio.newSource("assets/audio/missileshot2.ogg", "static")
+	}	
+	self.soundMissileItter=1
+	for _,a in pairs(self.soundMissiles) do
+		a:setVolume(0.4)
+	end 
+
+	self.soundExplosions={
+		love.audio.newSource("assets/audio/explosion1.ogg", "static"),
+		love.audio.newSource("assets/audio/explosion3.ogg", "static"),
+		love.audio.newSource("assets/audio/explosion4.ogg", "static"),
+		love.audio.newSource("assets/audio/explosion1.ogg", "static"),
+		love.audio.newSource("assets/audio/explosion2.ogg", "static"),
+		love.audio.newSource("assets/audio/explosion3.ogg", "static"),
+		love.audio.newSource("assets/audio/explosion4.ogg", "static"),
+		love.audio.newSource("assets/audio/explosion2.ogg", "static")
+	}
+	for _,a in pairs(self.soundExplosions) do
+		a:setVolume(0.4)
+	end
+
+	self.soundVoices={
+		love.audio.newSource("assets/audio/shit.ogg", "static"),
+		love.audio.newSource("assets/audio/fuckyou.ogg", "static"),
+		love.audio.newSource("assets/audio/formotherrussia.ogg", "static"),
+		love.audio.newSource("assets/audio/shit.ogg", "static"),
+		love.audio.newSource("assets/audio/fuckyou.ogg", "static"),
+		love.audio.newSource("assets/audio/formotherrussia.ogg", "static")
+	}
+
+	self.voiceFusRoDov=love.audio.newSource("assets/audio/fusrodov.ogg", "static")
+	self.voiceAnneRoumanov=love.audio.newSource("assets/audio/anneroumanov.ogg", "static")
 
 	self.musicAmbiance=love.audio.newSource("assets/audio/music.ogg")
 	self.musicAmbiance:setLooping(true)
@@ -66,26 +92,17 @@ end
 
 function SoundManager.explosion()
 	if not self.noSound then
-		rd=math.floor(math.random(1,4))
-		if rd == 1 then
-			self.soundExplosion1:play()
-		elseif rd == 2 then
-			self.soundExplosion2:play()
-		elseif rd == 3 then
-			self.soundExplosion3:play()
-		elseif rd == 4 then
-			self.soundExplosion4:play()
-		end
+		rd=math.floor(math.random(1,8))
+		self.soundExplosions[rd]:play()
 	end
 end
 
 function SoundManager.missile()
 	if not self.noSound then
-		rd=math.floor(math.random(1,2))
-		if rd == 1 then
-			self.soundMissile1:play()
-		elseif rd == 2 then
-			self.soundMissile2:play()
+		self.soundMissiles[self.soundMissileItter]:play()
+		self.soundMissileItter=self.soundMissileItter+1
+		if(self.soundMissileItter>4)then
+			self.soundMissileItter=1
 		end
 	end
 end
@@ -122,14 +139,8 @@ end
 
 function SoundManager.voice()
 	if not self.noSound then
-		rd=math.floor(math.random(1,3))
-		if rd == 1 then
-			self.voiceShit:play()
-		elseif rd == 2 then
-			self.voiceFuckyou:play()
-		elseif rd == 3 then
-			self.voiceForMotherRussia:play()
-		end
+		rd=math.floor(math.random(1,6))
+		self.soundVoices[rd]:play()
 	end
 end
 
@@ -144,7 +155,6 @@ function SoundManager.voiceDeath()
 		self.voiceAnneRoumanov:play()
 	end
 end
-
 
 function SoundManager.setNoMusic(noMusic)	
 	if (self.noMusic~=noMusic) then

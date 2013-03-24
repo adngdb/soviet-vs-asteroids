@@ -9,7 +9,7 @@ local sprites = {
     love.graphics.newImage("assets/graphics/asteroid_2.png"),
     love.graphics.newImage("assets/graphics/asteroid_3.png")
 }
-local explosion = love.graphics.newImage("assets/graphics/explosion.png")
+local particle = love.graphics.newImage("assets/graphics/asteroid_particle.png")
 local baseRadius = gameConfig.asteroid.baseRadius
 
 function Class.create( options )
@@ -18,8 +18,9 @@ function Class.create( options )
     setmetatable(self, Class)
 
     self.space = options.space
-    self.index = options.index
     self.exploded = false
+    self.rotation = math.random() * 2 * math.pi
+    self.rotationSpeed = -math.pi / 2 + math.random() * math.pi
 
     -- Determine random position
     local x = math.random() - 0.5
@@ -27,8 +28,8 @@ function Class.create( options )
     local a = math.atan2( y, x )
 
     self.pos = options.pos or vec2(
-        gameConfig.asteroidBeltDistance * math.cos( a ),
-        gameConfig.asteroidBeltDistance * math.sin( a )
+        gameConfig.asteroid.beltDistance * math.cos( a ),
+        gameConfig.asteroid.beltDistance * math.sin( a )
     )
 
     -- direction is toward the center +/- 18 degrees
@@ -49,20 +50,21 @@ function Class.create( options )
 
         -- 10% chance of big
         if rand < 0.10 then
-            self.radius = 64
+            self.radius = gameConfig.asteroid.baseRadius
 
         -- 60% chance of medium
         elseif rand < 0.70 then
-            self.radius = 32
+            self.radius = gameConfig.asteroid.baseRadius / 2
 
         -- 30% chance of small
         else
-            self.radius = 16
+            self.radius = gameConfig.asteroid.baseRadius / 4
         end
     end
 
     -- life of the asteroid depends of its radius
-    self.life = self.radius / baseRadius
+    self.life = self.radius / baseRadius / 5
+    self.maxLife = self.life
     self.numberSatHit = 0
 
     self.color = options.color or { 255, 255, 255 }
@@ -74,48 +76,93 @@ function Class.create( options )
     return self
 end
 
-function Class:explode()
-    self.exploded = true
-    dist = math.sqrt(self.pos.x * self.pos.x + self.pos.y * self.pos.y)
-    game.station:asteroidKilled(1, dist)
-
-    SoundManager.explosion()
+function Class:destroy()
+    
 end
 
-function Class:hit()
-    self.life = self.life - gameConfig.laser.baseDmg
-    self.color = { 255, 128 + ( self.life * 128 ), 128 + ( self.life * 128 ) }
+function Class:explode(options)
+    options = options or {}
+
+    self.exploded = true
+    dist = math.sqrt(self.pos.x * self.pos.x + self.pos.y * self.pos.y)
+    game.station:asteroidKilled(self.radius, dist, options.noPoints)
+    SoundManager.explosion()
+
+    self.xplosion = love.graphics.newParticleSystem( particle, 50 * self.radius / baseRadius )
+    self.xplosion:setEmissionRate(1E4)
+    self.xplosion:setSpread( 2 * math.pi )
+    self.xplosion:setLifetime(0.06)
+    self.xplosion:setParticleLife(1, 2)
+    self.xplosion:setSizes(1,0)
+    self.xplosion:setSpeed(50, 200)
+    self.xplosion:start()
+
+    self.timeSinceExplosion = 0
+end
+
+function Class:hit(nbHits, modifier)
+    modifier = modifier or 1
+    self.life = self.life - gameConfig.laser.baseDmg * math.pow(nbHits, gameConfig.laser.dpsExp) * modifier
+
+    local percent = self.life / self.maxLife
+
+    self.color = { 255, 128 + ( percent * 128 ), 128 + ( percent * 128 ) }
 end
 
 -- Update the asteroid
 --
 -- Parameters:
 --  dt: The time in seconds since last frame
-function Class:update(dt)
+function Class:update(dt, i)
+    if not self.exploded then
+        if self.life <= 0 then
+            self.space:splitAsteroid( self )
+            self:explode()
+        end
 
-    if self.life <= 0 then
-        self.space:splitAsteroid( self )
-        self:explode()
-        self.space:removeAsteroid( self.index )
+        self.pos = self.pos + self.speed * dt
+        self.boundingCircle = circle(self.pos, self.radius)
+
+        self.rotation = self.rotation + self.rotationSpeed * dt
+    else
+        self.timeSinceExplosion = self.timeSinceExplosion + dt
+        if self.timeSinceExplosion > 2 then
+            self.xplosion:stop()
+            self.xplosion:reset()
+            self.space:removeAsteroid( i )
+        else
+            self.xplosion:update(dt)
+        end
     end
-
-    self.pos = self.pos + self.speed * dt
-    self.boundingCircle = circle(self.pos, self.radius)
 end
 
 function Class:draw()
+    local drawable
+
     love.graphics.setColor( unpack(self.color) )
-    love.graphics.draw(
-        self.sprite,
-        self.pos.x, self.pos.y,
-        0,
-        self.radius / baseRadius, self.radius / baseRadius,
-        baseRadius, baseRadius
-    )
+
+    if not self.exploded then
+        love.graphics.draw(
+            self.sprite,
+            self.pos.x,
+            self.pos.y,
+            self.rotation,
+            self.radius / baseRadius,
+            self.radius / baseRadius,
+            baseRadius, baseRadius
+        )
+    else
+        love.graphics.draw(
+            self.xplosion,
+            self.pos.x,
+            self.pos.y,
+            self.rotation
+        )
+    end
 end
 
 function Class:isOffscreen()
-    return self.pos:length() > gameConfig.asteroidBeltDistance + 1
+    return self.pos:length() > gameConfig.asteroid.beltDistance + 1
 end
 
 function Class:distanceWithLine(shootAngle)

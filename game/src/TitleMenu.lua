@@ -1,12 +1,12 @@
 -----------------------------------------------------------------------------------------
 --
--- PauseMenu.lua
+-- TitleMenu.lua
 --
--- The main PauseMenu class.
+-- The main TitleMenu class.
 --
 -----------------------------------------------------------------------------------------
-module("PauseMenu", package.seeall)
-local Class = PauseMenu
+module("TitleMenu", package.seeall)
+local Class = TitleMenu
 Class.__index = Class
 
 -----------------------------------------------------------------------------------------
@@ -21,7 +21,7 @@ require("src.gui.Colors")
 -- Initialization and Destruction
 -----------------------------------------------------------------------------------------
 
--- Create the PauseMenu
+-- Create the TitleMenu
 function Class.create(options)
     -- Create object
     self = {}
@@ -29,47 +29,33 @@ function Class.create(options)
 
     self.game = options.game
     self.selected = 1
-    self.scale = gameConfig.screen.scale
+    self.scale = gameConfig.screen.scale - 0.09
 
-    self.background = love.graphics.newImage("assets/graphics/gui/menu_bg.png")
+    self.background = love.graphics.newImage("assets/graphics/intro_screen.png")
 
     self.buttons = {}
     table.insert(
         self.buttons,
         Button.create{
-            x = (gameConfig.screen.width - 444 * self.scale) / 2, -- center
-            y = gameConfig.screen.height / 2 - 100 * self.scale,
+            x = (gameConfig.screen.width - 444 * gameConfig.screen.scale) / 2, -- center
+            y = gameConfig.screen.height / 2 + 300 * gameConfig.screen.scale,
             width = 444,
             height = 66,
-            scale = self.scale,
+            scale = gameConfig.screen.scale,
             background = "btn_off",
             border = "btn_on",
-            text = "Resume",
-            callback = self.resumeGame,
+            text = "Start Game",
+            callback = self.playGame,
         }
     )
     table.insert(
         self.buttons,
         Button.create{
-            x = (gameConfig.screen.width - 444 * self.scale) / 2, -- center
-            y = gameConfig.screen.height / 2 - 20 * self.scale,
+            x = (gameConfig.screen.width - 444 * gameConfig.screen.scale) / 2, -- center
+            y = gameConfig.screen.height / 2 + 400 * gameConfig.screen.scale,
             width = 444,
             height = 66,
-            scale = self.scale,
-            background = "btn_off",
-            border = "btn_on",
-            text = "Restart",
-            callback = self.restartGame,
-        }
-    )
-    table.insert(
-        self.buttons,
-        Button.create{
-            x = (gameConfig.screen.width - 444 * self.scale) / 2, -- center
-            y = gameConfig.screen.height / 2 + 60 * self.scale,
-            width = 444,
-            height = 66,
-            scale = self.scale,
+            scale = gameConfig.screen.scale,
             background = "btn_off",
             border = "btn_on",
             text = "Quit",
@@ -80,7 +66,7 @@ function Class.create(options)
     return self
 end
 
--- Destroy the PauseMenu
+-- Destroy the TitleMenu
 function Class:destroy()
 end
 
@@ -88,46 +74,31 @@ end
 -- Methods
 -----------------------------------------------------------------------------------------
 
--- Update the PauseMenu
+-- Update the TitleMenu
 --
 -- Parameters:
 --  dt: The time in seconds since last frame
 function Class:update(dt)
 end
 
--- Draw the PauseMenu
+-- Draw the TitleMenu
 function Class:draw()
     -- display the background
     love.graphics.draw(
         self.background,
-        (gameConfig.screen.width - 609 * self.scale) / 2,
-        (gameConfig.screen.height - 720 * self.scale) / 2,
+        (gameConfig.screen.width - 1920 * self.scale) / 2,
+        (gameConfig.screen.height - 1080 * self.scale) / 2,
         0,
         self.scale
     )
-
-    colors.white()
-    love.graphics.setFont(self.game.fonts["72"])
-    love.graphics.printf(
-        "Pause menu",
-        0,
-        gameConfig.screen.height / 2 - 300 * self.scale,
-        gameConfig.screen.width,
-        "center"
-    )
-    love.graphics.setFont(self.game.fonts["48"])
 
     for key, val in pairs(self.buttons) do
         val:draw()
     end
 end
 
-function resumeGame()
+function playGame()
     self.game:setMode("game")
-end
-
-function restartGame()
-    restart()
 end
 
 function quitGame()

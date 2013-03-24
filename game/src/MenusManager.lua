@@ -14,7 +14,10 @@ Class.__index = Class
 -----------------------------------------------------------------------------------------
 
 require("src.Config")
+require("src.TitleMenu")
 require("src.PauseMenu")
+require("src.UpgradeMenu")
+
 
 -----------------------------------------------------------------------------------------
 -- Initialization and Destruction
@@ -34,6 +37,7 @@ end
 
 -- Destroy the MenusManager
 function Class:destroy()
+    self.menu:destroy()
 end
 
 -----------------------------------------------------------------------------------------
@@ -59,24 +63,67 @@ function Class:setMenu(menu)
         self.menu:destroy()
     end
 
-    if menu == "pause" then
+    if menu == "title" then
+        Menu = TitleMenu
+    elseif menu == "pause" then
         Menu = PauseMenu
-    end
-    if menu == "upgrade" then
+    elseif menu == "upgrade" then
         Menu = UpgradeMenu
     end
-
+    SoundManager.laserStop()
     self.menu = Menu.create{
         game = self.game
     }
+
+    self:selectButton()
 end
 
 function Class:selectButtonIn(x, y)
-    self.menu:selectButtonIn(x, y)
+    for key, val in pairs(self.menu.buttons) do
+        if val:contains(x, y) then
+            self:deselectButton()
+            self.menu.selected = key
+            val.selected = true
+            break
+        end
+    end
+end
+
+function Class:previousButton()
+    self:deselectButton()
+    self.menu.selected = (self.menu.selected - 1) % table.getn(self.menu.buttons)
+    if self.menu.selected == 0 then
+        self.menu.selected = table.getn(self.menu.buttons)
+    end
+    self:selectButton()
+end
+
+function Class:nextButton()
+    self:deselectButton()
+    self.menu.selected = (self.menu.selected + 1) % table.getn(self.menu.buttons)
+    if self.menu.selected == 0 then
+        self.menu.selected = table.getn(self.menu.buttons)
+    end
+    self:selectButton()
 end
 
 function Class:enterSelected()
-    self.menu:enterSelected()
+    if self.menu.selected ~= nil then
+        btn = self.menu.buttons[self.menu.selected]
+        btn:callback()
+    end
+end
+
+function Class:selectButton()
+    btn = self.menu.buttons[self.menu.selected]
+    btn.selected = true
+end
+
+function Class:deselectButton()
+    if self.menu.selected ~= nil then
+        btn = self.menu.buttons[self.menu.selected]
+        btn.selected = false
+    end
 end
 
 -----------------------------------------------------------------------------------------
